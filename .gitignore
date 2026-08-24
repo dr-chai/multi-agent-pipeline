@@ -1,0 +1,9 @@
+# 運行時產物（唔入 repo）
+output/
+prompts/
+receipts/
+__pycache__/
+*.pyc
+*.raw.json
+*.raw.txt
+*.err.log
