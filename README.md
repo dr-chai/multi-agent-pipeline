@@ -1,51 +1,112 @@
-# 柴博士多 Agent 協作流水線
+# Receipt-Bearing Protocol (RBP) — 多 Agent 協作交接驗證協議
 
-用多個**唔同 vendor** 嘅 AI agent 組成一條協作流水線，交接用 **receipt**（epoch + digest + typed_reason）保證「先驗證先開工」。
+> 唔做信箱，做「交接驗證」——先驗證先開工、fail-closed。
+>
+> 協議規格見 [RECEIPT-BEARING-PROTOCOL.md](./RECEIPT-BEARING-PROTOCOL.md)
 
-## 佢係咩
+## 核心概念
 
-一條流水線，串起 5 個 agent 各司其職：
+RBP 係一條**跨 vendor agent 交接驗證協議**。每個 agent 完成任務後寫一張 **receipt**（交接憑證），下游開工前**先驗證、先開工**；任何一樣驗唔過就 fail-closed（唔開工）。
 
-```
-Maco 寫 code → Kim 寫測試 → Claude review → Codex review → Sheila 寫文檔
-```
+### Receipt 三層保證
 
-每個 agent 完成時寫一張 receipt，下游開工前先驗證——**digest 對唔對、epoch 過唔過期、typed_reason 係咪 PASS**。
-
-## 有咩唔同（差異化）
-
-| | 一般多 agent 方案 | 我哋 |
+| 層 | 字段 | 作用 |
 |---|---|---|
-| 交接 | 丟 file 就算 | 寫 receipt，先驗證先開工 |
-| 篡改 | 讀咗舊 file 都唔知 | digest 對唔上就 fail-closed |
-| 失敗追溯 | 要由頭再跑 | receipt 留低「做到邊一步」|
+| 時效層 | `epoch` | 防止讀過期 state，`now - epoch ≤ max_age` |
+| 完整性層 | `content_digest` / `canonical_digest` | 防止篡改，下游重算 hash 比對 |
+| 決策層 | `typed_reason` | 類型化記錄「點解呢步係咁」，唔係 PASS 就 fail-closed |
 
-呢套 receipt-bearing 交接，嚟自我哋喺 EigenFlux agent 網絡實測嘅「多 agent 可靠性協議」（bounded-drain、epoch fence、receipt digest）——唔係紙上談兵，係自己個 pipeline 已經跑緊。
+### Fail-closed
+
+任何驗證失敗 = 唔開工。空結果（0 字節）自動降級 REJECT，唔可以同成功混為一談。
+
+## 安裝
+
+純標準庫，零第三方依賴：
+
+```bash
+# 需要 Python 3.8+
+python3 -c "import receipt; print('OK')"
+```
+
+依賴：`hashlib`、`json`、`time`、`pathlib`（全部標準庫）。
 
 ## 快速開始
 
-```bash
-# 1. 裝 5 個 agent CLI（見 references/setup.md）
-# 2. 跑流水線
-cd demo_agents && python3 run_demo.py
+```python
+import receipt
+from pathlib import Path
+
+# 1. 寫 output 檔
+Path(receipt._receipts_dir / "hello.py").write_text("print('hello')\n")
+
+# 2. 寫 receipt
+rec = receipt.write_receipt(
+    task_id="task-001",
+    from_agent="Maco",
+    to_agent="Kim",
+    prev_outputs=[],
+    new_outputs=[{"path": "hello.py", "status": receipt.NOT_CHECKED}],
+    typed_reason=receipt.PASS,
+)
+
+# 3. 下游驗證
+ok, msg = receipt.verify_receipt("task-001", expect_from="Maco")
+print(ok, msg)  # True, OK
 ```
 
-完成後，output/ 有晒成果（fibonacci.py、test、兩份 review、README），receipts/ 有晒交接憑證。
+## API
 
-## 目錄
-
-| 檔案 | 內容 |
+| 函數 / 常數 | 用途 |
 |---|---|
-| `run_demo.py` | 流水線主程式（receipt-bearing 交接）|
-| `SKILL.md` | skill 主文件（俾 agent 讀）|
-| `RECEIPT-BEARING.md` | 交接設計 + 實測 |
-| `references/setup.md` | 安裝／設定教程 |
-| `references/feishu-gateway.md` | 飛書 Agent 指揮部（另一種多 agent 形態）|
+| `write_receipt(task_id, from_agent, to_agent, prev_outputs, new_outputs, ...)` | 建 receipt dict，寫入 `receipts/{task_id}.json`；空輸出自動降級 REJECT |
+| `verify_receipt(task_id, expect_from, max_age=3600)` | 五步驗證（density → scope → digest → epoch → verdict），返 `(bool, 原因)` |
+| `density_check(receipt)` | 計算 required fields 覆蓋密度，返 `(bool, metric)` |
+| `content_digest(path)` | 對檔案原始 bytes 做 SHA-256，返 `sha256:<hex>` |
+| `canonical_digest(obj)` | 對 JCS canonical JSON 做 SHA-256，消解「語義相同、字節不同」 |
+| `canonical_digest_file(path)` | 對檔案做 canonical digest（JSON 走 JCS，其他 fall back content_digest） |
+| `digest_bytes(data)` | SHA-256 hex digest，前綴 `sha256:` |
+| `canonical_json(obj)` | RFC 8785 JCS canonical JSON（鍵按 UTF-8 排序、無多餘空白） |
 
-## 產品化（可賣）
+### typed_reason 詞表
 
-呢套嘢可以拆做三層賣：
+| 常數 | 語義 |
+|---|---|
+| `PASS` | 交接成功，下游開工 |
+| `REJECT` | 交接失敗（含空輸出 silent failure） |
+| `UNKNOWN` | 證據不足，進 reconcile track |
+| `QUARANTINE` | 有問題但未定性，隔離待 review |
+| `NOT_CHECKED` | 未檢查 |
+| `INDETERMINATE` | 有弱證據但未收斂 |
+| `CONFIRMED_UNAVAILABLE` | 確認「真係冇」 |
+| `CHECKED_EMPTY` | 檢查過，結果係空 |
 
-1. **Skill／教程**（免費引流）—— 教人 30 分鐘起一條多 Agent 流水線
-2. **課程**（付費）—— 系統化教「多 Agent 協作 + 可靠性協議」
-3. **落地服務**（高客單價）—— 幫企業實地部署 + 客製化
+## 測試
+
+```bash
+cd 產品/multi-agent-pipeline
+python3 -m pytest test_receipt.py -v
+```
+
+測試涵蓋：正常交接、篡改檢測、過期檢測、空輸出自動 REJECT、來源驗證、density check。
+
+## 協議規格
+
+詳細規格（schema、負例庫、版本 roadmap）見 [RECEIPT-BEARING-PROTOCOL.md](./RECEIPT-BEARING-PROTOCOL.md)。
+
+## 流水線 Demo
+
+`run_demo.py` 係一條 5-agent 協作流水線實例：
+
+```
+Maco (OpenClaw) → Kim (OpenClaw kimi) → Claude (Claude Code) → Codex (OpenAI) → Sheila (Hermes)
+ code              test               code review          security review    README
+```
+
+每個 agent 完成後寫 receipt，下游開工前 verify。執行：
+
+```bash
+python3 run_demo.py
+```
+
+完成後 `output/` 有晒成果，`output/receipts/` 有晒交接憑證。
