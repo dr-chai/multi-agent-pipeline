@@ -191,16 +191,18 @@ RBP 用一張 receipt 補晒三個洞。
 下游開工前，**五步重建**驗證：
 
 ```
-驗簽 → digest → scope → epoch → verdict
+density → scope → digest → epoch → verdict
 ```
+
+> v0.1 略過 ① 驗簽（留 v0.2 DID/VC），由 **scope 做身份前置校驗**——先驗「來源啱唔啱」、後驗「內容有冇被篡改」，避免 scope 錯誤被 digest 錯誤掩蓋。
 
 | 步 | 驗咩 | 唔過嘅後果 |
 |---|---|---|
-| ① 驗簽 | （v0.2 DID/VC；v0.1 略過，只驗 digest） | — |
-| ② digest | 對每個 output 重算 canonical_digest，唔同就 fail | fail-closed（防篡改） |
-| ③ scope | 來源 `from` 係咪期望嘅 issuer；`to` 係咪自己 | fail-closed（防錯鏈） |
-| ④ epoch | `now - epoch ≤ max_age`；`fence` 未過期 | fail-closed（防舊 state） |
-| ⑤ verdict | `typed_reason == PASS` | fail-closed（唔係 PASS 唔開工） |
+| ⓪ density | required fields 密度 + outputs 非空（deserialization 之後、semantic 之前） | fail-closed（封 hollow receipt） |
+| ① scope | 來源 `from.agent_id` 係咪期望嘅 issuer（v0.2 會加 `to` 自驗） | fail-closed（防錯鏈） |
+| ② digest | 對每個 output 重算 content + canonical digest，唔同就 fail | fail-closed（防篡改） |
+| ③ epoch | `now - epoch ≤ max_age` 且唔係未來時間（`age ≥ 0`） | fail-closed（防舊 state） |
+| ④ verdict | `typed_reason == PASS` | fail-closed（唔係 PASS 唔開工） |
 
 ### 7.1 density check（封 hollow receipt attack surface）
 
