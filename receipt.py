@@ -14,6 +14,7 @@ v0.1 已知取捨（待 v0.2）：
 
 import hashlib
 import json
+import re
 import time
 from pathlib import Path
 
@@ -86,6 +87,28 @@ def canonical_digest_file(path: Path) -> str:
     return canonical_digest(obj)
 
 
+# ── 路徑／ID 安全 ───────────────────────────────────────────────────
+def _safe_name(name) -> bool:
+    """只接受單一相對 filename（拒 absolute／`..`／path separator／NUL／首尾空白）。
+    （負例：path traversal 逃逸 receipts/ 目錄。）"""
+    if not isinstance(name, str) or not name:
+        return False
+    if name != name.strip() or "\x00" in name:
+        return False
+    if name in (".", "..") or ".." in name:
+        return False
+    if "/" in name or "\\" in name:
+        return False
+    if name.startswith("/") or name.startswith("\\"):
+        return False
+    return True
+
+
+def _safe_task_id(task_id) -> bool:
+    """task_id 只允許 [A-Za-z0-9_-]{1,128}，防寫出 receipts/ 目錄。"""
+    return isinstance(task_id, str) and bool(re.fullmatch(r"[A-Za-z0-9_-]{1,128}", task_id))
+
+
 # ── write_receipt ──────────────────────────────────────────────────
 def write_receipt(
     task_id: str,
@@ -105,6 +128,9 @@ def write_receipt(
     - 空 path（冇產出）略過，唔落 map
     prev_outputs / new_outputs 每項係 str filename 或 dict {path, status}。
     """
+    if not _safe_task_id(task_id):
+        raise ValueError(f"invalid task_id: {task_id!r}")
+
     outputs: dict = {}   # filename -> {content_digest, canonical_digest, status}
     final_reason = typed_reason
 
@@ -117,6 +143,10 @@ def write_receipt(
 
             if not path_str:
                 continue   # 空 path = 冇產出，略過
+
+            if not _safe_name(path_str):
+                final_reason = REJECT   # 唔安全 path（../ 等）fail-closed
+                continue
 
             p = _receipts_dir / path_str
             if not p.exists():
@@ -200,18 +230,25 @@ def verify_receipt(
     if not isinstance(outputs, dict):
         return False, "outputs is not a map"
     for name, meta in outputs.items():
-        if not name:
-            continue
+        if not _safe_name(name):
+            return False, f"unsafe output name: {name!r}"
+        if not isinstance(meta, dict):
+            return False, f"output metadata not a map for {name!r}"
         p = _receipts_dir / name
-        if not p.exists():
+        if not p.is_file():
             return False, f"output file missing: {name}"
-        if content_digest(p) != meta.get("content_digest"):
-            return False, f"content_digest mismatch for {name}"
-        if canonical_digest_file(p) != meta.get("canonical_digest", ""):
-            return False, f"canonical_digest mismatch for {name}"
+        try:
+            if content_digest(p) != meta.get("content_digest"):
+                return False, f"content_digest mismatch for {name}"
+            if canonical_digest_file(p) != meta.get("canonical_digest", ""):
+                return False, f"canonical_digest mismatch for {name}"
+        except (OSError, ValueError, TypeError, RecursionError) as exc:
+            return False, f"digest failed for {name}: {exc}"
 
     # ── ④ epoch：本地時鐘，防舊 state 同未來時間 ────────────────────
     epoch = receipt.get("epoch", 0)
+    if not isinstance(epoch, int) or isinstance(epoch, bool):
+        return False, f"invalid epoch type: {type(epoch).__name__}"
     age = int(time.time()) - epoch
     if age < 0 or age > max_age:
         return False, f"epoch invalid/stale: age={age}s (max_age={max_age}s)"
