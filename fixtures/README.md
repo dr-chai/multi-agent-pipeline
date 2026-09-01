@@ -22,13 +22,26 @@ Golden vectors. Each entry has:
 
 All vectors pass ⇒ your implementation is canonicalization-conformant with RBP v0.1.
 
-## Reference verifier
+## Reference implementations
+
+Two independent implementations reproduce all 7 vectors (7/7):
 
 ```bash
+# Python reference
 python3 fixtures/verify_fixtures.py
+
+# TypeScript reference (Node.js >= 23, native type-stripping)
+node fixtures/verify_ts.mjs
 ```
 
-Runs the vectors through the reference implementation (`receipt.py`).
+| Implementation | File |
+|---|---|
+| Python | `receipt.py` |
+| TypeScript (Node.js) | `receipt.ts` |
+
+## Number precision note
+
+The `numbers` vector's `big` field is `9007199254740991` (2^53−1), the largest integer exactly representable as an IEEE-754 double — the precision every mainstream JSON parser uses. Integers beyond 2^53 are **not** portable: Python's `json` preserves them, but JavaScript's `JSON.parse` (and most languages) rounds them. RBP v0.1 therefore bounds canonical-digest inputs to IEEE-754-safe integers; larger integers must be carried as strings.
 
 ## Handoff semantics (fail-closed)
 

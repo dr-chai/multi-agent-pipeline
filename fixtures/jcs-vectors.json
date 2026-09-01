@@ -55,10 +55,10 @@
         "int": 42,
         "neg": -1,
         "float": 3.14,
-        "big": 12345678901234567890
+        "big": 9007199254740991
       },
-      "canonical": "{\"big\":12345678901234567890,\"float\":3.14,\"int\":42,\"neg\":-1}",
-      "digest": "sha256:9658cfdc4e1dcb5d35189288cc6f347af9012ad9dd4be3bb141103dcef097a8b"
+      "canonical": "{\"big\":9007199254740991,\"float\":3.14,\"int\":42,\"neg\":-1}",
+      "digest": "sha256:b89e4a0c120ab77871389941ce3bff328af121280e4c2790238aa0598fa5908a"
     },
     {
       "id": "deep-array",
