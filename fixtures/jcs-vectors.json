@@ -1,0 +1,95 @@
+{
+  "protocol": "rbp",
+  "version": "0.1",
+  "description": "JCS (RFC 8785) canonicalization + SHA-256 golden vectors. Any conformant implementation MUST reproduce the exact  string and  for each .",
+  "vectors": [
+    {
+      "id": "simple-sort",
+      "input": {
+        "b": 1,
+        "a": 2,
+        "c": 3
+      },
+      "canonical": "{\"a\":2,\"b\":1,\"c\":3}",
+      "digest": "sha256:e145110e712e3ed0a6b233551b27a90aa39b4c93ed67e111ba2002d16e5ed1fa"
+    },
+    {
+      "id": "nested",
+      "input": {
+        "z": {
+          "y": 1,
+          "x": 2
+        },
+        "a": [
+          1,
+          2,
+          3
+        ],
+        "s": "v"
+      },
+      "canonical": "{\"a\":[1,2,3],\"s\":\"v\",\"z\":{\"x\":2,\"y\":1}}",
+      "digest": "sha256:c0e22917d08e494d9a1b8ec7e81ffe69ad0a0040a4ae3ca9244249f12dafa5ba"
+    },
+    {
+      "id": "unicode",
+      "input": {
+        "名字": "柴博士",
+        "emoji": "🚀",
+        "lang": "廣東話"
+      },
+      "canonical": "{\"emoji\":\"\\ud83d\\ude80\",\"lang\":\"\\u5ee3\\u6771\\u8a71\",\"\\u540d\\u5b57\":\"\\u67f4\\u535a\\u58eb\"}",
+      "digest": "sha256:ab6feb1d5f66ca765446675565281861df249194004bcfe0a32d376b5aeb0959"
+    },
+    {
+      "id": "escaping",
+      "input": {
+        "s": "quote\" backslash\\ newline\n tab\t",
+        "unicode_esc": "A"
+      },
+      "canonical": "{\"s\":\"quote\\\" backslash\\\\ newline\\n tab\\t\",\"unicode_esc\":\"A\"}",
+      "digest": "sha256:685d2d505bb8ee0b7d62c17e462ebac4ea4765a43107b927a47eae3387352f3d"
+    },
+    {
+      "id": "numbers",
+      "input": {
+        "int": 42,
+        "neg": -1,
+        "float": 3.14,
+        "big": 12345678901234567890
+      },
+      "canonical": "{\"big\":12345678901234567890,\"float\":3.14,\"int\":42,\"neg\":-1}",
+      "digest": "sha256:9658cfdc4e1dcb5d35189288cc6f347af9012ad9dd4be3bb141103dcef097a8b"
+    },
+    {
+      "id": "deep-array",
+      "input": {
+        "arr": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "obj": {
+          "k": "v"
+        }
+      },
+      "canonical": "{\"arr\":[[1,2],[3,4]],\"obj\":{\"k\":\"v\"}}",
+      "digest": "sha256:2d00c67ee29fb814a2a8fb8a3f18ceb28b08c331e77aa08d48cf4bc55f7ecf51"
+    },
+    {
+      "id": "null-bool",
+      "input": {
+        "null": null,
+        "true": true,
+        "false": false,
+        "empty_str": ""
+      },
+      "canonical": "{\"empty_str\":\"\",\"false\":false,\"null\":null,\"true\":true}",
+      "digest": "sha256:c1bb7add9b9d4b1f518926a8999ac42ab7938abecef1d99433d6dd767a2ff443"
+    }
+  ]
+}

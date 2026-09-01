@@ -28,6 +28,9 @@ jobs:
       - name: Run tests
         run: python -m pytest test_receipt.py -q --tb=short
 
+      - name: Run conformance fixtures
+        run: python fixtures/verify_fixtures.py
+
   lint:
     name: Syntax check
     runs-on: ubuntu-latest
