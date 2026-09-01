@@ -3,6 +3,7 @@ output/
 prompts/
 receipts/
 __pycache__/
+.pytest_cache/
 *.pyc
 *.raw.json
 *.raw.txt

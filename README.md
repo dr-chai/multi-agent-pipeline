@@ -1,5 +1,10 @@
 # Receipt-Bearing Protocol (RBP) — 多 Agent 協作交接驗證協議
 
+![CI](https://github.com/dr-chai/multi-agent-pipeline/actions/workflows/ci.yml/badge.svg)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)
+![Protocol](https://img.shields.io/badge/RBP-v0.1-blue.svg)
+
 > 唔做信箱，做「交接驗證」——先驗證先開工、fail-closed。
 >
 > 協議規格見 [RECEIPT-BEARING-PROTOCOL.md](./RECEIPT-BEARING-PROTOCOL.md)
