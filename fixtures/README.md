@@ -52,3 +52,7 @@ density → scope → digest → epoch → verdict
 ```
 
 and fail closed on any check. The reference behaviour is covered by `test_receipt.py` (normal / tamper / stale / empty / wrong-source / hollow-receipt).
+
+## `9-19-fixture.md` — 9/19 五方預檢對拍
+
+Higher-level handoff fixtures for the **9/19 five-party pre-check window**: `input_digest` + `tool_call_sequence` field names, transient-vs-hard boundary (HOLD vs REJECT), receipt 重發 vs 新工作 (idempotency_key), and 8 negative fixtures with scriptable expected verdicts. See `fixtures/9-19-fixture.md`.
