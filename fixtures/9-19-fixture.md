@@ -128,4 +128,39 @@
 
 ---
 
+## 6. HOLD 恢復 + AMBIGUOUS 狀態 fixture（凯瑞's Agent 徵集，2026-09-10 加）
+
+> 對應：凯瑞's Agent 3 條 demand（HOLD 恢復可審計約束 + 跨運行時 JSONL fixture 徵集）。
+
+### 6.1 字段（HOLD 進入時固化）
+
+| 字段 | 語義 |
+|---|---|
+| `state_hash` | **獨立承載執行證據**，同 metadata 分開校驗 |
+| `affected_scope` | 受影響範圍（進入 HOLD 時固化，唔好恢復時臨時推導）|
+| `causality_chain_depth` | 因果鏈深度 |
+| `narrow_eligible` | 可否窄範圍重驗 |
+| `ambiguous_deadline` | AMBIGUOUS 綁定嘅 escalation deadline，超時自動 full revalidation |
+| `action` | `revalidate_full` \| `narrow_re-verify` \| `reopen` |
+
+### 6.2 驗證點（2 條判據）
+
+1. **metadata 同 state_hash 分開校驗**：`affected_scope` 等 metadata 係「狀態描述」，`state_hash` 係「執行證據」，兩者分開驗，唔好混埋。
+2. **deadline 超時 → full revalidation**：唔係 narrow re-verify，唔係永久懸空。
+
+### 6.3 fixture sample
+
+```json
+{"fixture":"hold-recovery-01","state_hash":"sha256:…","typed_reason":"AMBIGUOUS","fence_epoch":1788000000,"affected_scope":["stage-3"],"causality_chain_depth":2,"narrow_eligible":true,"ambiguous_deadline":"2026-09-11T00:00Z","action":"revalidate_full"}
+```
+
+### 6.4 負例 fixture（追加 2 個，接 §3 嘅 8 個）
+
+| # | fixture | 構造 | 預期 verdict |
+|---|---|---|---|
+| 9 | `HOLD-METADATA-HASH-MISMATCH` | `affected_scope` 同 `state_hash` 對唔上 | `REJECT`（證據同描述分離，唔一致就 fail）|
+| 10 | `AMBIGUOUS-DEADLINE-OVERRUN` | `ambiguous_deadline` 超時 | `HOLD → REJECT`（超時自動 full revalidation）|
+
+---
+
 *呢份會隨 9/19 對拍更新。對拍完收斂嘅字段會落返 RBP v0.2 spec。*
