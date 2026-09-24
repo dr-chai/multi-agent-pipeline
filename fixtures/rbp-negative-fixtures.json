@@ -1,0 +1,95 @@
+{
+  "schema_version": "1.0",
+  "normalization_form": "NFC",
+  "producer": "柴博士 (Dr. Chai)",
+  "producer_agent_id": "338833594396966912",
+  "purpose": "RBP 可靠性負例 fixture —— 與东湖小C (9/17)、栀子花 (Windows harness) 對拍用",
+  "fixtures": [
+    {
+      "id": "exit_code_false_positive",
+      "name": "exit-code 假陽性（side-channel 噪音）",
+      "contributor": "Hermes",
+      "distinguishable_from": {
+        "done_input": {
+          "feed_poll": {"status": "ok", "data_count": 14},
+          "skills_sync": {"lock_error": "Access is denied"}
+        },
+        "not_done_input": {
+          "feed_poll": {"status": "ok", "data_count": 14},
+          "skills_sync": {"lock_error": null}
+        }
+      },
+      "expected": {
+        "verdict": "PASS",
+        "reason": "feed_poll 成功；skills_sync 嘅 lock 錯誤屬 side-channel 噪音，唔入失敗判定",
+        "fingerprint": "feed_poll_ok=14"
+      },
+      "assertion": "判據必須區分「有 lock 噪音」vs「無 lock 噪音」，且兩者都唔應該令整體判 FAIL"
+    },
+    {
+      "id": "criterion_non_discriminating",
+      "name": "判據無區分度（criterion 不可判）",
+      "contributor": "栀子花 Agent",
+      "distinguishable_from": {
+        "done_input": {
+          "record_time": "20:34:15",
+          "already_in_target": true
+        },
+        "not_done_input": {
+          "record_time": "20:34:15",
+          "already_in_target": false
+        }
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason": "判據「+28800 後是否仍落同一自然日」對「已轉」vs「未轉」俾同一結果（out_of_window=0），無區分力",
+        "fingerprint": "criterion_constant_function"
+      },
+      "assertion": "判據必須對 done_input 同 not_done_input 俾「不同」verdict；相同即判定判據無區分度，通過態唔入分母"
+    },
+    {
+      "id": "capability_never_established",
+      "name": "能力從未建立（silent all-clear）",
+      "contributor": "栀子花 Agent",
+      "distinguishable_from": {
+        "done_input": {
+          "presence_table": ["init_ok@00:00:01", "work_done@00:00:20"],
+          "outer_receipt": {"duration_s": 202, "status": "complete"}
+        },
+        "not_done_input": {
+          "presence_table": [],
+          "outer_receipt": {"duration_s": 202, "status": "complete"}
+        }
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason": "空 presence 表 = agent 初始化階段已死（temp root ACL denial），命令體一次未跑；外層 receipt 完整正確係假綠",
+        "fingerprint": "empty_presence_table"
+      },
+      "assertion": "presence 必須喺初始化階段落一條；空 presence 表要判「從未啟動」，同「確實無事」區分"
+    },
+    {
+      "id": "silent_disconnect_ambiguous",
+      "name": "靜默失聯（AMBIGUOUS：冇響應 vs 響應在路上）",
+      "contributor": "东湖小C",
+      "distinguishable_from": {
+        "done_input": {
+          "last_event_epoch": 100,
+          "now_epoch": 101,
+          "tcp_state": "ESTAB"
+        },
+        "not_done_input": {
+          "last_event_epoch": 100,
+          "now_epoch": 100,
+          "tcp_state": "ESTAB"
+        }
+      },
+      "expected": {
+        "verdict": "UNKNOWN",
+        "reason": "冇響應無法同「響應在路上」區分（two-generals）；只能靠外部時鐘 + 次數上限兜底，唔可以判 PASS 或 FAIL",
+        "fingerprint": "event_interval_exceeded"
+      },
+      "assertion": "判據要區分「事件間隔有前進」vs「冇前進」；socket 狀態（ESTAB）唔可作健康證據"
+    }
+  ]
+}

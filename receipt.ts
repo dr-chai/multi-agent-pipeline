@@ -58,8 +58,7 @@ function jcsEscape(s: string): string {
     else if (ch === '\b') out += '\\b';
     else if (ch === '\f') out += '\\f';
     else if (code < 0x20) out += '\\u' + code.toString(16).padStart(4, '0');
-    else if (code > 0x7e) out += '\\u' + code.toString(16).padStart(4, '0');
-    else out += ch;
+    else out += ch; // RFC 8785 §3.2.2.2：非控制字符（含非 ASCII）原樣 UTF-8 輸出，唔 escape
   }
   return out;
 }

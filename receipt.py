@@ -46,12 +46,16 @@ _receipts_dir.mkdir(exist_ok=True)
 
 # ── canonical_json：RFC 8785 JCS ───────────────────────────────────
 def canonical_json(obj) -> str:
-    """JCS canonical JSON：鍵按 UTF-8 排序、無多餘空白。"""
+    """JCS canonical JSON：鍵按 UTF-8 排序、無多餘空白。
+
+    RFC 8785 §3.2.2.2：非控制字符必須原樣 UTF-8 輸出，唔可以轉 \\uXXXX 轉義。
+    所以 ensure_ascii=False（Python json.dumps 預設 True 會轉義非 ASCII，係 JCS 違規）。
+    """
     return json.dumps(
         obj,
         sort_keys=True,
         separators=(",", ":"),
-        ensure_ascii=True,
+        ensure_ascii=False,
         allow_nan=False,
     )
 

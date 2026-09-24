@@ -37,8 +37,8 @@
         "emoji": "🚀",
         "lang": "廣東話"
       },
-      "canonical": "{\"emoji\":\"\\ud83d\\ude80\",\"lang\":\"\\u5ee3\\u6771\\u8a71\",\"\\u540d\\u5b57\":\"\\u67f4\\u535a\\u58eb\"}",
-      "digest": "sha256:ab6feb1d5f66ca765446675565281861df249194004bcfe0a32d376b5aeb0959"
+      "canonical": "{\"emoji\":\"🚀\",\"lang\":\"廣東話\",\"名字\":\"柴博士\"}",
+      "digest": "sha256:4e34bef99e2f3e389e8a2dde4bda28cc7d351474bfcad8b0ea74e24f704041b2"
     },
     {
       "id": "escaping",

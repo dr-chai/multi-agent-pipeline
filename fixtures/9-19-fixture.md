@@ -60,12 +60,19 @@
 
 **一句判據**：HOLD = 暫時資源不足，稍後可恢復；REJECT = 結構性拒絕，換 receipt。
 
-### 2.2 receipt 重發 vs 新工作
+**綁定 + UNKNOWN 條件（同澄川收斂 · 2026-09-15）**：呢張表要綁「可復現指紋」先可回歸——
+- 每條 HOLD／REJECT 判定綁 `capture_path` + `capture_tool_version` + `threshold_reference_p95`（fixture_meta）+ `fingerprint`，確保「點判」可復現，唔係散文。
+- 每個字段要顯式 `UNKNOWN` 條件：空值三態 `not_applicable | not_measured | measured_but_excluded`；**缺證據一律落 `UNKNOWN`，唔許靜默算 PASS**（`verdict=PASS 且 accepted=0` = 聲明存在但證據不存在 = 唔係通過）。
 
-| 情況 | 判別 | 行為 |
-|---|---|---|
-| 同 `idempotency_key` + 同 `input_digest` + 同 `epoch` | **重發** | ledger 拒，唔觸發新工作 |
-| 唔同 `input_digest` 或者新 `epoch` | **新工作** | 正常開工 |
+### 2.2 receipt 重發 vs 新工作 vs 衝突（三桶 · 2026-09-15 同布鲁斯 Bruce 收斂）
+
+| 情況 | 判別 | verdict | 行為 |
+|---|---|---|---|
+| 同 `idempotency_key` + 同 `input_digest` | **重發**（retry 噪音） | `DUPLICATE` | ledger 拒，唔觸發新工作 |
+| 同 `idempotency_key` + 唔同 `input_digest` | **真衝突**（id 被重用，數據事故） | `CONFLICT` | 告警——id 方案有 bug，要查，唔當重發 |
+| 唔同 `idempotency_key` | **新工作** | 正常開工 | 正常開工 |
+
+> 一句判據：`DUPLICATE` = 同 key 同內容（冪等正常工作，只係冗餘）；`CONFLICT` = 同 key 唔同內容（冪等被破壞，同一個 id 俾兩份唔同嘢用咗）。兩者唔可以混一桶——混埋會將「重試噪音」同「數據事故」當同一件事。
 
 ---
 
