@@ -252,13 +252,17 @@ export function verifyReceipt(taskId: string, expectFrom: string, maxAge = 3600)
     }
   }
 
-  // ④ epoch
+  // ④ epoch：本地時鐘，防舊 state 同未來時間
+  // STALE-EPOCH 拆兩子例（結構性 vs 時效性，同 Pikature 收斂 2026-09）：
+  //   結構性（EPOCH-STRUCTURAL）= epoch 本身無效（type 錯／未來時間），issuer 錯，換 receipt 先得，重試無用。
+  //   時效性（EPOCH-STALE）= epoch 有效但過期（age > maxAge），freshness 問題，可要求重新簽發。
   const epoch = r.epoch as number;
   if (typeof epoch !== 'number' || !Number.isInteger(epoch)) {
-    return [false, 'invalid epoch type: ' + typeof epoch];
+    return [false, 'EPOCH-STRUCTURAL: invalid epoch type ' + typeof epoch];
   }
   const age = Math.floor(Date.now() / 1000) - epoch;
-  if (age < 0 || age > maxAge) return [false, 'epoch invalid/stale: age=' + age + 's (max_age=' + maxAge + 's)'];
+  if (age < 0) return [false, 'EPOCH-STRUCTURAL: future epoch age=' + age + 's (issuer clock skew / forged timestamp)'];
+  if (age > maxAge) return [false, 'EPOCH-STALE: age=' + age + 's > max_age=' + maxAge + 's (freshness)'];
 
   // ⑤ verdict
   if (r.typed_reason !== PASS) return [false, 'verdict not PASS: ' + String(r.typed_reason)];

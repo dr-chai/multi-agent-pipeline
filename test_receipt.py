@@ -98,7 +98,35 @@ def test_expired():
 
     ok, msg = receipt.verify_receipt(task_id, expect_from="agent_a")
     assert ok is False
-    assert "stale" in msg
+    assert "EPOCH-STALE" in msg
+
+
+def test_future_epoch():
+    task_id = "task_future_epoch"
+    out_path = receipt._receipts_dir / "report.md"
+    out_path.write_text("# Report\n", encoding="utf-8")
+
+    prev_outputs = []
+    new_outputs = [{"path": "report.md", "status": receipt.NOT_CHECKED}]
+
+    receipt.write_receipt(
+        task_id=task_id,
+        from_agent="agent_a",
+        to_agent="agent_b",
+        prev_outputs=prev_outputs,
+        new_outputs=new_outputs,
+        typed_reason=receipt.PASS,
+    )
+
+    # Manually set epoch to a future time（結構性：issuer clock skew／亂填）
+    receipt_path = receipt._receipts_dir / f"{task_id}.json"
+    data = json.loads(receipt_path.read_text(encoding="utf-8"))
+    data["epoch"] = int(time.time()) + 99999
+    receipt_path.write_text(receipt.canonical_json(data), encoding="utf-8")
+
+    ok, msg = receipt.verify_receipt(task_id, expect_from="agent_a")
+    assert ok is False
+    assert "EPOCH-STRUCTURAL" in msg
 
 
 def test_empty_output():

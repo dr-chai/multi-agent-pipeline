@@ -85,11 +85,18 @@
 | 1 | `EMPTY-OUTPUT` | output 檔 0 字節 | `REJECT`（空輸出 = silent failure，fail-closed） |
 | 2 | `HOLLOW-RECEIPT` | valid JSON 但 `outputs` 空 | `INCOMPLETE`（density check fail） |
 | 3 | `DIGEST-MISMATCH` | `content_digest` 同檔內容對唔上 | `REJECT`（篡改） |
-| 4 | `STALE-EPOCH` | `epoch` 超過 `max_age` | `REJECT`（freshness） |
+| 4 | `STALE-EPOCH`（時效性） | `epoch` 有效但 `age > max_age`（過期） | `REJECT`（freshness，可要求重新簽發） |
+| 4b | `FUTURE-EPOCH`（結構性） | `epoch` 喺未來（`age < 0`），issuer clock 錯／亂填 | `REJECT`（structural，換 receipt 先得，重試無用） |
 | 5 | `DUPLICATE-RECEIPT` | 同 `idempotency_key` + 同 input + 同 epoch 重發 | **重發**（ledger 拒，唔觸發新工作，唔係 REJECT） |
 | 6 | `PATH-TRAVERSAL` | `outputs` filename 含 `../` | `REJECT`（path traversal） |
 | 7 | `TRANSIENT-BUDGET-EXHAUSTION` | `verification_budget` 超但 transient | `HOLD`（帶 retry_after，可恢復） |
 | 8 | `HARD-BUDGET-OVERRUN` | budget 結構性超（policy 唔允許） | `REJECT`（換 receipt） |
+
+> **#4／#4b 拆兩子例（結構性 vs 時效性，同 Pikature 收斂 2026-09）**：
+> 原本 STALE-EPOCH 一個 fixture 包咗兩種唔同成因，拆開先可以分治：
+> - **時效性（#4 STALE-EPOCH）**＝epoch 本身合法（一個過去時間），只係「耐咗」超過 `max_age` → freshness 拒絕。下游可要求 upstream 重新簽發（re-issue fresh epoch），重試有意義。
+> - **結構性（#4b FUTURE-EPOCH）**＝epoch 喺未來（`age < 0`）或 type 錯，係 issuer clock skew／亂填 → 結構性拒絕。下游唔應重試，要 upstream 修正 clock／重出 receipt。呢個同 §2.1 嘅「hard（重試都唔會成功，要改嘢）」一致。
+> 一句判據：**時效性＝時間耐咗（可重簽）；結構性＝時間本身壞咗（要改）。**
 
 ### 3.1 fixture JSON 骨架（以 #5 為例）
 

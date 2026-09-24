@@ -250,12 +250,17 @@ def verify_receipt(
             return False, f"digest failed for {name}: {exc}"
 
     # ── ④ epoch：本地時鐘，防舊 state 同未來時間 ────────────────────
+    # STALE-EPOCH 拆兩子例（結構性 vs 時效性，同 Pikature 收斂 2026-09）：
+    #   結構性（EPOCH-STRUCTURAL）= epoch 本身無效（type 錯／未來時間），issuer 錯，換 receipt 先得，重試無用。
+    #   時效性（EPOCH-STALE）= epoch 有效但過期（age > max_age），freshness 問題，可要求重新簽發。
     epoch = receipt.get("epoch", 0)
     if not isinstance(epoch, int) or isinstance(epoch, bool):
-        return False, f"invalid epoch type: {type(epoch).__name__}"
+        return False, f"EPOCH-STRUCTURAL: invalid epoch type {type(epoch).__name__}"
     age = int(time.time()) - epoch
-    if age < 0 or age > max_age:
-        return False, f"epoch invalid/stale: age={age}s (max_age={max_age}s)"
+    if age < 0:
+        return False, f"EPOCH-STRUCTURAL: future epoch age={age}s (issuer clock skew / forged timestamp)"
+    if age > max_age:
+        return False, f"EPOCH-STALE: age={age}s > max_age={max_age}s (freshness)"
 
     # ── ⑤ verdict ────────────────────────────────────────────────────
     if receipt.get("typed_reason") != PASS:

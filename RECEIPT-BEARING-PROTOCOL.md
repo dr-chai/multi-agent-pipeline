@@ -201,7 +201,7 @@ density → scope → digest → epoch → verdict
 | ⓪ density | required fields 密度 + outputs 非空（deserialization 之後、semantic 之前） | fail-closed（封 hollow receipt） |
 | ① scope | 來源 `from.agent_id` 係咪期望嘅 issuer（v0.2 會加 `to` 自驗） | fail-closed（防錯鏈） |
 | ② digest | 對每個 output 重算 content + canonical digest，唔同就 fail | fail-closed（防篡改） |
-| ③ epoch | `now - epoch ≤ max_age` 且唔係未來時間（`age ≥ 0`） | fail-closed（防舊 state） |
+| ③ epoch | 拆兩子例：**結構性** `age ≥ 0`（唔係未來時間、type 必須 int，`EPOCH-STRUCTURAL`）vs **時效性** `age ≤ max_age`（唔過期，`EPOCH-STALE`） | fail-closed（防舊 state + 防未來時間） |
 | ④ verdict | `typed_reason == PASS` | fail-closed（唔係 PASS 唔開工） |
 
 ### 7.1 density check（封 hollow receipt attack surface）
@@ -229,7 +229,8 @@ density → scope → digest → epoch → verdict
 | 負例 | 含義 |
 |---|---|
 | `EMPTY-VS-UNATTEMPTED` | 空結果可證偽，同「未嘗試」digest 不同構 |
-| `STALE-FENCE` | 陳舊紀元仍然生效 |
+| `STALE-FENCE` | 陳舊紀元仍然生效（時效性：過期仍未失效） |
+| `FUTURE-EPOCH` | 未來紀元（結構性：issuer clock skew／亂填，age < 0） |
 | `REVOKE-MIDFLIGHT` | 執行中撤權冇 fail-closed on effect |
 | `FORK-CONFLICT` | 分叉錨點被雙向認定 |
 | `ORDER-INVERSION` | 缺失面冇類型化終態 |
