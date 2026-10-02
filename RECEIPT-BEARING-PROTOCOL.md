@@ -184,6 +184,21 @@ RBP 用一張 receipt 補晒三個洞。
 
 > 詞表紀律：每個詞條要「**釘死否定空間 + 互斥 + 有對應 receipt 字段可腳本化區分**」——否則新詞條 = 新靜默面。
 
+### 6.4 具名終態（9/22 前對拍收斂，封「空值／降級／過期」靜默面）
+
+> 原則：空值、降級、過期要「**具名**」，唔留空俾下游誤讀——留空會被讀成「唔需要呢個欄位」。
+
+| 終態 | 觸發 | 語義 |
+|---|---|---|
+| `UNCONDITIONED` | 條件未喺處置前註冊 | 事後註冊嘅條件等於冇條件，降級唔補記 |
+| `DIFF_SELF_TIMED` | diff 時刻由被對拍方自填 | 自證退回，唔入完整性分母亦唔當零 |
+| `SELF_ISSUED_ZERO` | 零值由產生嗰方自寫 | 自發零值單獨出桶，唔入分母亦唔當零 |
+| `WITNESS_EXPIRED` | 見證過期（帶 `expiry_as_of` + `next_due`） | 過期係時刻唔係狀態，冇下一輪會一直掛 |
+| `ELIGIBILITY_NEVER_OBSERVED` | 資格長期零觀察 | 續期自己資格驗過幾次要有數，長期零唔當有效 |
+| `DOMAIN_NEVER_DISPUTED` | 域長期 `DISTINCT` 冇人核 | 「從來冇人反對」同「反對過但全成立」同一個樣 |
+| `NO_OWNER_ASSIGNED` | owner 到期冇人認領（帶 `no_owner_since`） | 具名空值，唔留空俾下游誤讀 |
+| `ROSTER_STALE` | 名冊 `as_of` 早於當前版本 | 機械判斷「攞到舊嗰份」 |
+
 ---
 
 ## 7. fail-closed 驗證流程（verifier）
@@ -239,6 +254,14 @@ density → scope → digest → epoch → verdict
 | `NON-JSON-CANONICALIZE` | 對非 JSON output 做 JCS canonicalization 會 crash（2026-08-31 流水線實測踩到） |
 | `schema 一致但狀態過期` | file-based 交接最卡嘅邊界 case（我哋親身踩） |
 | `receipt chain 假設原子 commit` | chain 唔能原子 commit，中間斷裂要顯式處理 |
+| `SELF-COUNTERSIGN` | 見證由受益方自簽（自簽 ≠ 獨立見證，第二簽署 = interchange） |
+| `STATIC-WITNESS` | 見證冇到期日（三年前見證 = 今日見證，`countersign_expires_at` 缺失） |
+| `FAKE-ZERO` | 寫 0 = 將未發生偽裝成已窮盡（`check_ran_n`／`observer_count_n` 冇落盤） |
+| `SELF-TIMED-DIFF` | 時刻由被對拍方自填（`DIFF_SELF_TIMED`） |
+| `SELF-RETAINED-SNAPSHOT` | 快照由寫嗰手留存（冇人核過嘅自留底，`retained_by = writer`） |
+| `UNBOUNDED-RENEWAL` | 續期冇上限（`renewal_max_n` 缺失 = 冇到期日） |
+| `SELF-RENEWED-OWNER` | owner 自己續自己期（永遠有人負責嘅錯覺） |
+| `ROSTER-COLLAPSED` | 觀察方名單塌成同一域（`observer_domain` 缺失，五個 = 一個域） |
 
 ---
 
@@ -248,7 +271,7 @@ density → scope → digest → epoch → verdict
 |---|---|---|
 | **v0.1（本文）** | schema + canonical digest + 四主態 + fail-closed 五步 + density check | 我哋 `run_demo.py` 已實測嘅子集 |
 | **v0.2** | 簽名／身份（DID / Verifiable Credentials）+ witness 強度分層（process vs outcome） | bounded-drain v1.5（雙向握手 + 12 項詞表） |
-| **v0.3** | shadow mode 三層凍結（COW fork、依賴回放、時間對齊） | bounded-drain v1.6 |
+| **v0.3** | 見證與時效（「誰」母題：獨立見證 + 到期日 + 零值必發 + 閉集，§12）+ verdict crosswalk 對準 + NEG-001 負例 namespace + shadow mode 三層凍結（COW fork、依賴回放、時間對齊） | 9/22 對拍收斂 + bounded-drain v1.6 |
 
 ---
 
@@ -257,6 +280,72 @@ density → scope → digest → epoch → verdict
 - **現狀**：`multi-agent-pipeline` repo（`run_demo.py`）已實測 5/5，實現咗 §4.1 核心字段 + §7 五步驗證。
 - **階段 1 要補**：抽 `receipt.py` 獨立模組（write_receipt / verify_receipt / canonical_digest / density_check），同本 spec 字段一一對應，加 pytest。
 - **開源位址**：`https://github.com/ButterScotch5158/multi-agent-pipeline`（remote `dr-chai/multi-agent-pipeline`）。
+
+---
+
+## 12. 見證與時效（v0.3 前置 · 9/22 前對拍收斂）
+
+> 呢一章係「誰」母題嘅 spec 化——**有信息嘅信號永遠係「誰」、唔係「什麼」**。
+> 完整共識見 `產品/fixtures/RBP-fixture-對拍-收斂共識.md` §八之六，呢度只落「可腳本化」嘅規格。
+
+### 12.1 一句話母題
+
+任何「簽／判／數／觀察／續期／退役／失效／留存」動作，都要滿足四條：
+
+1. **獨立於得益方**（自簽 ≠ 獨立見證，第二簽署 = interchange）
+2. **有到期日**（冇到期日嘅身分一定靜默失效）
+3. **零值必發**（寫 0 = 將未發生偽裝成已窮盡 = 假 0）
+4. **閉集**（枚舉超出即 UNKNOWN，就地加值 = 靜默）
+
+### 12.2 獨立見證（誰）
+
+| 欄位 | 規則 |
+|---|---|
+| `counter_reader` | 唔得係寫入方（「數過 = 0」要可信） |
+| `observer_roster` + `roster_issuer` | 觀察方名冊要外簽 + 版本化 |
+| `observer_domain` | 跨域觀察方唔可互相替代 |
+| `retire_by` | 唔得係執行方（判完成／簽發／執行三方重合 = 自證閉環） |
+| `invalidation_observed_by` | 唔得係失效方／其繼任方 |
+| `count_issuer` | 唔得係被觀察嗰個域自己報 |
+
+### 12.3 時效性（有到期日嘅身分）
+
+任何「資格／名冊／見證／owner／留存」都要帶到期日，到期出事件（唔靜默）：
+
+| 欄位 | 規則 |
+|---|---|
+| `countersign_expires_at` | 見證要定期重簽（三年前見證 ≠ 今日見證） |
+| `owner_standing_expires_at` | owner 係有到期日嘅身分 |
+| `retention_until` + `retention_owner` | 留存要有生命週期 + 負責人 |
+| `retention_expired` | 到期出事件，`expired_observed_by ≠ 留存方` |
+| `renewal_max_n` | 續期要有上限（冇上限 = 冇到期日） |
+
+### 12.4 零值必發（假 0）
+
+任何「計數」0 都要落盤——「冇發生」同「冇數過」字段同形：
+
+- `rejected_write_n`（單一寫入者被拒計數）
+- `check_ran_n` + `check_scope_digest`（複核次數 + 範圍）
+- `expiry_breach_observed_n`（過期違規檢測）
+- `observer_count_n` + `count_as_of`（計數 + 時刻）
+- 空值具名：`NO_OWNER_ASSIGNED`（唔留空）
+
+### 12.5 閉集（超出即 UNKNOWN）
+
+任何「枚舉／維度／原因碼／計法」都係閉集：
+
+- 超出閉集 → `UNKNOWN`（fail-closed），唔 PASS、唔自由列
+- 要加值 → 版本 bump（新舊並存對照），唔就地加值
+- `enum_set_digest` 簽住，遷移期主判以 `policy_version` 鎖定
+
+### 12.6 成對版本化
+
+任何「版本／閾值／標記／映射」變更 = 開新版本，唔覆蓋舊記錄：
+
+- 新舊並存對照（三條件切主：批次下界 + 收斂條件 + 時間上界）
+- 歷史唔可重寫（唔回填、唔回溯、唔追溯作廢）
+- `retirement_event` 簽發退役（遷移期有上界）
+- 主判版俾結論、對照版俾 drift 信號
 
 ---
 

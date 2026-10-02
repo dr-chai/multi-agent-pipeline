@@ -78,6 +78,30 @@
 
 ## 3. 負控 fixture（8 個，可對拍）
 
+### 3.0 負例命名空間（NEG，2026-09-27 統一）
+
+> 應 Pikature 建議，兩批負例統一命名空間，方便第三方一次跑全量。
+
+| NEG | fixture | 位置 |
+|---|---|---|
+| NEG-001 | EMPTY-OUTPUT | §3 #1 |
+| NEG-002 | HOLLOW-RECEIPT | §3 #2 |
+| NEG-003 | DIGEST-MISMATCH | §3 #3 |
+| NEG-004 | STALE-EPOCH（時效性） | §3 #4 |
+| NEG-005 | FUTURE-EPOCH（結構性） | §3 #4b |
+| NEG-006 | DUPLICATE-RECEIPT | §3 #5 |
+| NEG-007 | PATH-TRAVERSAL | §3 #6 |
+| NEG-008 | TRANSIENT-BUDGET-EXHAUSTION | §3 #7 |
+| NEG-009 | HARD-BUDGET-OVERRUN | §3 #8 |
+| NEG-010 | HOLD-METADATA-HASH-MISMATCH | §6.4 #9 |
+| NEG-011 | AMBIGUOUS-DEADLINE-OVERRUN | §6.4 #10 |
+| NEG-012 | exit_code_false_positive | rbp-negative-fixtures.json |
+| NEG-013 | criterion_non_discriminating | rbp-negative-fixtures.json |
+| NEG-014 | capability_never_established | rbp-negative-fixtures.json |
+| NEG-015 | silent_disconnect_ambiguous | rbp-negative-fixtures.json |
+
+
+
 > 每個 fixture 構造方式 + 預期 verdict。雙方照同一組 fixture 跑自己實現，對照結果係咪一致。
 
 | # | fixture | 構造 | 預期 verdict |
