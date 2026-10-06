@@ -6,6 +6,266 @@
   "purpose": "RBP 可靠性負例 fixture —— 與东湖小C (9/17)、栀子花 (Windows harness) 對拍用",
   "fixtures": [
     {
+      "id": "empty_output",
+      "neg_id": "NEG-001",
+      "name": "空輸出（0 字節 silent failure）",
+      "contributor": "柴博士 (Dr. Chai)",
+      "distinguishable_from": {
+        "done_input": {
+          "output_file": "report.md",
+          "output_bytes": "# report\n"
+        },
+        "not_done_input": {
+          "output_file": "report.md",
+          "output_bytes": ""
+        }
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason": "0 字節輸出＝silent failure，fail-closed",
+        "fingerprint": "empty_output_bytes=0"
+      },
+      "assertion": "0 字節輸出唔可以同「確實無事」混埋，要判 REJECT"
+    },
+    {
+      "id": "hollow_receipt",
+      "neg_id": "NEG-002",
+      "name": "空洞回執（valid JSON 但 outputs 空）",
+      "contributor": "柴博士 (Dr. Chai)",
+      "distinguishable_from": {
+        "done_input": {
+          "outputs": {
+            "out.txt": {
+              "content_digest": "sha256:abc"
+            }
+          }
+        },
+        "not_done_input": {
+          "outputs": {}
+        }
+      },
+      "expected": {
+        "verdict": "INCOMPLETE",
+        "reason": "outputs 空＝density check fail，hollow receipt",
+        "fingerprint": "empty_outputs_map"
+      },
+      "assertion": "valid JSON 但 outputs 空要判 INCOMPLETE（density check），唔可以 PASS"
+    },
+    {
+      "id": "digest_mismatch",
+      "neg_id": "NEG-003",
+      "name": "digest 對唔上（篡改）",
+      "contributor": "柴博士 (Dr. Chai)",
+      "distinguishable_from": {
+        "done_input": {
+          "file": "out.txt",
+          "declared_content_digest": "sha256:正確"
+        },
+        "not_done_input": {
+          "file": "out.txt",
+          "declared_content_digest": "sha256:錯誤"
+        }
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason": "content_digest 同檔內容對唔上＝篡改",
+        "fingerprint": "digest_mismatch"
+      },
+      "assertion": "declared digest 同實際重算 digest 唔一致要判 REJECT（防篡改）"
+    },
+    {
+      "id": "stale_epoch",
+      "neg_id": "NEG-004",
+      "name": "epoch 過期（時效性 STALE）",
+      "contributor": "柴博士 (Dr. Chai)",
+      "distinguishable_from": {
+        "done_input": {
+          "epoch": 1789000000,
+          "now": 1789000100,
+          "max_age": 3600
+        },
+        "not_done_input": {
+          "epoch": 1788000000,
+          "now": 1789000100,
+          "max_age": 3600
+        }
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason": "age > max_age＝時效性過期（EPOCH-STALE，freshness，可重簽）",
+        "fingerprint": "stale_epoch_age_exceeded"
+      },
+      "assertion": "epoch 有效但過期（age > max_age）要判 EPOCH-STALE／REJECT（freshness），唔係結構性"
+    },
+    {
+      "id": "future_epoch",
+      "neg_id": "NEG-005",
+      "name": "epoch 喺未來（結構性 FUTURE）",
+      "contributor": "柴博士 (Dr. Chai)",
+      "distinguishable_from": {
+        "done_input": {
+          "epoch": 1788000000,
+          "now": 1789000100
+        },
+        "not_done_input": {
+          "epoch": 1790000000,
+          "now": 1789000100
+        }
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason": "age < 0＝結構性未來時間（EPOCH-STRUCTURAL，issuer clock skew，換 receipt 先得）",
+        "fingerprint": "future_epoch_negative_age"
+      },
+      "assertion": "epoch 喺未來（age < 0）要判 EPOCH-STRUCTURAL／REJECT（結構性，重試無用），唔係時效性"
+    },
+    {
+      "id": "duplicate_receipt",
+      "neg_id": "NEG-006",
+      "name": "重複回執（同 key 同 input 重發）",
+      "contributor": "柴博士 (Dr. Chai)",
+      "distinguishable_from": {
+        "done_input": {
+          "idempotency_key": "sess-42:handoff-7",
+          "input_digest": "sha256:aaa",
+          "first_submit": true
+        },
+        "not_done_input": {
+          "idempotency_key": "sess-42:handoff-7",
+          "input_digest": "sha256:aaa",
+          "first_submit": false
+        }
+      },
+      "expected": {
+        "verdict": "DUPLICATE",
+        "reason": "同 idempotency_key＋同 input_digest＝重發（retry 噪音），唔觸發新工作",
+        "fingerprint": "same_key_same_input"
+      },
+      "assertion": "同 key 同 input 重發要判 DUPLICATE（唔係 REJECT），「重發」唔等於「失敗」"
+    },
+    {
+      "id": "path_traversal",
+      "neg_id": "NEG-007",
+      "name": "路徑逃逸（filename 含 ../）",
+      "contributor": "柴博士 (Dr. Chai)",
+      "distinguishable_from": {
+        "done_input": {
+          "output_filename": "safe.txt"
+        },
+        "not_done_input": {
+          "output_filename": "../etc/passwd"
+        }
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason": "outputs filename 含 ../＝path traversal",
+        "fingerprint": "path_traversal_dotdot"
+      },
+      "assertion": "filename 含 .. 要判 REJECT（path traversal），fail-closed"
+    },
+    {
+      "id": "transient_budget_exhaustion",
+      "neg_id": "NEG-008",
+      "name": "驗證預算超但 transient（可恢復）",
+      "contributor": "柴博士 (Dr. Chai)",
+      "distinguishable_from": {
+        "done_input": {
+          "verification_budget": {
+            "max_verifications": 100
+          },
+          "used": 50
+        },
+        "not_done_input": {
+          "verification_budget": {
+            "max_verifications": 100
+          },
+          "used": 150,
+          "transient": true
+        }
+      },
+      "expected": {
+        "verdict": "HOLD",
+        "reason": "budget 超但 transient＝暫時資源不足，可恢復（帶 retry_after＋deadline）",
+        "fingerprint": "transient_budget_exceeded"
+      },
+      "assertion": "budget 超但 transient 要判 HOLD（可恢復），唔係 REJECT"
+    },
+    {
+      "id": "hard_budget_overrun",
+      "neg_id": "NEG-009",
+      "name": "驗證預算結構性超（換 receipt）",
+      "contributor": "柴博士 (Dr. Chai)",
+      "distinguishable_from": {
+        "done_input": {
+          "verification_budget": {
+            "max_verifications": 100
+          },
+          "used": 50
+        },
+        "not_done_input": {
+          "verification_budget": {
+            "max_verifications": 100
+          },
+          "used": 150,
+          "transient": false
+        }
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason": "budget 結構性超（policy 唔允許）＝換 receipt",
+        "fingerprint": "hard_budget_overrun"
+      },
+      "assertion": "budget 結構性超要判 REJECT（換 receipt），唔係 HOLD"
+    },
+    {
+      "id": "hold_metadata_hash_mismatch",
+      "neg_id": "NEG-010",
+      "name": "HOLD 元數據同 state_hash 對唔上",
+      "contributor": "柴博士 (Dr. Chai)",
+      "distinguishable_from": {
+        "done_input": {
+          "affected_scope": [
+            "stage-3"
+          ],
+          "state_hash": "sha256:正確"
+        },
+        "not_done_input": {
+          "affected_scope": [
+            "stage-3"
+          ],
+          "state_hash": "sha256:錯誤"
+        }
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason": "affected_scope 同 state_hash 對唔上＝證據同描述分離，fail-closed",
+        "fingerprint": "metadata_hash_mismatch"
+      },
+      "assertion": "metadata（affected_scope）同 state_hash 唔一致要判 REJECT（證據同描述分離）"
+    },
+    {
+      "id": "ambiguous_deadline_overrun",
+      "neg_id": "NEG-011",
+      "name": "AMBIGUOUS deadline 超時（自動 full revalidation）",
+      "contributor": "柴博士 (Dr. Chai)",
+      "distinguishable_from": {
+        "done_input": {
+          "ambiguous_deadline": "2026-09-30T00:00Z",
+          "now": "2026-09-25T00:00Z"
+        },
+        "not_done_input": {
+          "ambiguous_deadline": "2026-09-20T00:00Z",
+          "now": "2026-09-25T00:00Z"
+        }
+      },
+      "expected": {
+        "verdict": "REJECT",
+        "reason": "ambiguous_deadline 超時＝HOLD → REJECT（超時自動 full revalidation）",
+        "fingerprint": "ambiguous_deadline_overrun"
+      },
+      "assertion": "ambiguous_deadline 超時要由 HOLD 自動轉 REJECT（full revalidation），唔係永久懸空"
+    },
+    {
       "id": "exit_code_false_positive",
       "name": "exit-code 假陽性（side-channel 噪音）",
       "contributor": "Hermes",
@@ -115,5 +375,5 @@
       "neg_id": "NEG-015"
     }
   ],
-  "negative_fixture_namespace": "NEG（與 9-19-fixture.md 統一編號：NEG-001~NEG-011 為協議負例，NEG-012~NEG-015 為可靠性負例）"
+  "negative_fixture_namespace": "NEG（統一編號：NEG-001~NEG-011 為協議負例，NEG-012~NEG-015 為可靠性負例）"
 }
