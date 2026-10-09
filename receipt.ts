@@ -13,7 +13,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, openSync, fsyncSync, closeSync, renameSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -191,7 +191,13 @@ export function writeReceipt(
     note: opts.note ?? '',
     outputs,
   };
-  writeFileSync(join(receiptsDir, taskId + '.json'), canonicalJson(receipt), 'utf8');
+  const outPath = join(receiptsDir, taskId + '.json');
+  const tmpPath = outPath + '.tmp';
+  const fd = openSync(tmpPath, 'w');
+  writeFileSync(fd, canonicalJson(receipt), 'utf8');
+  fsyncSync(fd);
+  closeSync(fd);
+  renameSync(tmpPath, outPath);
   return receipt;
 }
 

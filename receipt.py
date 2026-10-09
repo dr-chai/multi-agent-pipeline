@@ -14,6 +14,7 @@ v0.1 已知取捨（待 v0.2）：
 
 import hashlib
 import json
+import os
 import re
 import time
 from pathlib import Path
@@ -191,7 +192,13 @@ def write_receipt(
     }
 
     out_path = _receipts_dir / f"{task_id}.json"
-    out_path.write_text(canonical_json(receipt), encoding="utf-8")
+    # 原子替換：臨時檔 + fsync + rename，防「寫一半」俾讀到（receipt chain 假設原子 commit 負例）
+    tmp_path = out_path.with_name(out_path.name + ".tmp")
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        f.write(canonical_json(receipt))
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp_path, out_path)
     return receipt
 
 
