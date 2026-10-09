@@ -337,3 +337,50 @@ def check_closed_enum(value, allowed_set, field_name) -> tuple:
     if value not in allowed_set:
         return False, f"ENUM-DRIFT: {field_name}={value!r} 超出閉集 {allowed_set}（超出即 UNKNOWN）"
     return True, "OK"
+
+
+def verify_witness_block(w: dict, now: int, beneficiary: str) -> tuple:
+    """驗證見證層 block 守「誰」母題四條（v0.3 擴展字段）。
+    w 結構：{
+      "countersign": {"issuer": str, "expires_at": int},      # 見證：獨立 + 到期日
+      "retention":   {"retained_by": str, "retained_until": int},  # 留存：獨立 + 到期日
+      "counters":    {"check_ran_n": int, "observer_count_n": int},  # 計數：零值必發
+      "typed_reason": str,                                    # 閉集（超出即 UNKNOWN）
+    }
+    逐條用四母題函數驗證，任何一條違反即 fail（fail-closed）。"""
+    # 見證：issuer 獨立於 beneficiary + 有到期日
+    cs = w.get("countersign")
+    if cs is not None:
+        ok, msg = check_independent(cs.get("issuer"), beneficiary)
+        if not ok:
+            return False, f"countersign: {msg}"
+        ok, msg = check_expiry(cs.get("expires_at"), now, "countersign.expires_at")
+        if not ok:
+            return False, f"countersign: {msg}"
+
+    # 留存：retained_by 獨立於 beneficiary + 有到期日（自留底 = 冇人核）
+    rt = w.get("retention")
+    if rt is not None:
+        ok, msg = check_independent(rt.get("retained_by"), beneficiary)
+        if not ok:
+            return False, f"retention: {msg}"
+        ok, msg = check_expiry(rt.get("retained_until"), now, "retention.retained_until")
+        if not ok:
+            return False, f"retention: {msg}"
+
+    # 計數：零值必發（缺失 = 冇數過 = 假 0）
+    counters = w.get("counters", {})
+    for f in ("check_ran_n", "observer_count_n"):
+        if f in counters:
+            ok, msg = check_zero_emitted(counters.get(f), f)
+            if not ok:
+                return False, msg
+
+    # 閉集：typed_reason 超出即 UNKNOWN
+    tr = w.get("typed_reason")
+    if tr is not None:
+        ok, msg = check_closed_enum(tr, {PASS, REJECT, UNKNOWN, QUARANTINE}, "typed_reason")
+        if not ok:
+            return False, msg
+
+    return True, "OK"

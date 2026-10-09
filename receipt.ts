@@ -275,3 +275,70 @@ export function verifyReceipt(taskId: string, expectFrom: string, maxAge = 3600)
 
   return [true, 'OK'];
 }
+
+// ── 見證層驗證（§12 見證與時效 · v0.3 前置）────────────────────────
+// 「誰」母題四條，逐條可證偽（能被負控測出來的才叫約束）
+
+export function checkIndependent(issuerId: unknown, beneficiaryId: unknown): [boolean, string] {
+  if (issuerId == null || beneficiaryId == null) {
+    return [false, 'MISSING-IDENTITY: issuer/beneficiary 缺一，無法判定獨立性'];
+  }
+  if (issuerId === beneficiaryId) {
+    return [false, 'SELF-SIGNED: issuer=' + String(issuerId) + ' == beneficiary（自簽 ≠ 獨立見證）'];
+  }
+  return [true, 'OK'];
+}
+
+export function checkExpiry(expiresAt: unknown, now: number, fieldName = 'expiry'): [boolean, string] {
+  if (expiresAt == null) {
+    return [false, 'NO-EXPIRY: ' + fieldName + ' 缺到期日（冇到期日 = 靜默失效）'];
+  }
+  if (typeof expiresAt === 'number' && expiresAt <= now) {
+    return [false, 'EXPIRED: ' + fieldName + ' expires_at=' + expiresAt + ' <= now=' + now];
+  }
+  return [true, 'OK'];
+}
+
+export function checkZeroEmitted(value: unknown, fieldName: string): [boolean, string] {
+  if (value === null || value === undefined) {
+    return [false, 'FAKE-ZERO: ' + fieldName + ' 缺計數（冇數過 ≠ 冇發生）'];
+  }
+  return [true, 'OK'];
+}
+
+export function checkClosedEnum(value: unknown, allowedSet: Set<unknown>, fieldName: string): [boolean, string] {
+  if (!allowedSet.has(value)) {
+    return [false, 'ENUM-DRIFT: ' + fieldName + '=' + String(value) + ' 超出閉集（超出即 UNKNOWN）'];
+  }
+  return [true, 'OK'];
+}
+
+export function verifyWitnessBlock(w: Record<string, unknown>, now: number, beneficiary: string): [boolean, string] {
+  const cs = w.countersign as Record<string, unknown> | undefined;
+  if (cs != null) {
+    let r = checkIndependent(cs.issuer, beneficiary);
+    if (!r[0]) return [false, 'countersign: ' + r[1]];
+    r = checkExpiry(cs.expires_at, now, 'countersign.expires_at');
+    if (!r[0]) return [false, 'countersign: ' + r[1]];
+  }
+  const rt = w.retention as Record<string, unknown> | undefined;
+  if (rt != null) {
+    let r = checkIndependent(rt.retained_by, beneficiary);
+    if (!r[0]) return [false, 'retention: ' + r[1]];
+    r = checkExpiry(rt.retained_until, now, 'retention.retained_until');
+    if (!r[0]) return [false, 'retention: ' + r[1]];
+  }
+  const counters = (w.counters || {}) as Record<string, unknown>;
+  for (const f of ['check_ran_n', 'observer_count_n']) {
+    if (f in counters) {
+      const r = checkZeroEmitted(counters[f], f);
+      if (!r[0]) return [false, r[1]];
+    }
+  }
+  const tr = w.typed_reason;
+  if (tr != null) {
+    const r = checkClosedEnum(tr, new Set([PASS, REJECT, UNKNOWN, QUARANTINE]), 'typed_reason');
+    if (!r[0]) return [false, r[1]];
+  }
+  return [true, 'OK'];
+}

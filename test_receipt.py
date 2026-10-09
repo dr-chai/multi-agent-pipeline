@@ -274,3 +274,58 @@ def test_enum_drift():
 def test_enum_ok():
     ok, msg = receipt.check_closed_enum("PASS", {"PASS", "REJECT", "UNKNOWN"}, "typed_reason")
     assert ok is True
+
+
+# ── 見證層 block 綜合驗證（verify_witness_block）正負例 ──────────────
+
+
+def test_witness_countersign_self_signed():
+    """負例：countersign issuer == beneficiary（自簽）。"""
+    w = {"countersign": {"issuer": "agent_a", "expires_at": 200}}
+    ok, msg = receipt.verify_witness_block(w, now=100, beneficiary="agent_a")
+    assert ok is False
+    assert "SELF-SIGNED" in msg
+
+
+def test_witness_countersign_no_expiry():
+    """負例：countersign 冇 expires_at（靜默失效）。"""
+    w = {"countersign": {"issuer": "agent_b"}}
+    ok, msg = receipt.verify_witness_block(w, now=100, beneficiary="agent_a")
+    assert ok is False
+    assert "NO-EXPIRY" in msg
+
+
+def test_witness_retention_self_retained():
+    """負例：retention retained_by == beneficiary（自留底）。"""
+    w = {"retention": {"retained_by": "agent_a", "retained_until": 200}}
+    ok, msg = receipt.verify_witness_block(w, now=100, beneficiary="agent_a")
+    assert ok is False
+    assert "SELF-SIGNED" in msg
+
+
+def test_witness_counter_fake_zero():
+    """負例：counters check_ran_n 缺失（冇數過 = 假 0）。"""
+    w = {"counters": {"check_ran_n": None}}
+    ok, msg = receipt.verify_witness_block(w, now=100, beneficiary="agent_a")
+    assert ok is False
+    assert "FAKE-ZERO" in msg
+
+
+def test_witness_enum_drift():
+    """負例：typed_reason 超出閉集。"""
+    w = {"typed_reason": "BOGUS"}
+    ok, msg = receipt.verify_witness_block(w, now=100, beneficiary="agent_a")
+    assert ok is False
+    assert "ENUM-DRIFT" in msg
+
+
+def test_witness_block_ok():
+    """正例：全部合法（獨立 + 到期日 + 零值 + 閉集）。"""
+    w = {
+        "countersign": {"issuer": "agent_b", "expires_at": 200},
+        "retention": {"retained_by": "agent_b", "retained_until": 200},
+        "counters": {"check_ran_n": 3, "observer_count_n": 2},
+        "typed_reason": "PASS",
+    }
+    ok, msg = receipt.verify_witness_block(w, now=100, beneficiary="agent_a")
+    assert ok is True
