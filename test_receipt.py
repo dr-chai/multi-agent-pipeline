@@ -208,3 +208,69 @@ def test_density_check():
     d_ok, metric = receipt.density_check(data)
     assert d_ok is False
     assert metric < 0.6
+
+
+# ── 見證層驗證（§12）正負例 ─────────────────────────────────────────
+# 可證偽原則：每條母題一個「違反」負例 + 一個「守規矩」正例，證明佢會真攔。
+
+
+def test_self_countersign():
+    """負例 SELF-COUNTERSIGN：issuer == beneficiary（自簽）。"""
+    ok, msg = receipt.check_independent("agent_a", "agent_a")
+    assert ok is False
+    assert "SELF-SIGNED" in msg
+
+
+def test_independent_ok():
+    ok, msg = receipt.check_independent("agent_a", "agent_b")
+    assert ok is True
+
+
+def test_missing_identity():
+    ok, msg = receipt.check_independent(None, "agent_b")
+    assert ok is False
+    assert "MISSING-IDENTITY" in msg
+
+
+def test_static_witness():
+    """負例 STATIC-WITNESS：見證冇到期日（expires_at = None）。"""
+    ok, msg = receipt.check_expiry(None, 100, "countersign_expires_at")
+    assert ok is False
+    assert "NO-EXPIRY" in msg
+
+
+def test_expired_witness():
+    """負例：到期日已過。"""
+    ok, msg = receipt.check_expiry(50, 100, "countersign_expires_at")
+    assert ok is False
+    assert "EXPIRED" in msg
+
+
+def test_expiry_ok():
+    ok, msg = receipt.check_expiry(200, 100, "countersign_expires_at")
+    assert ok is True
+
+
+def test_fake_zero():
+    """負例 FAKE-ZERO：計數欄位缺失（冇數過 ≠ 冇發生）。"""
+    ok, msg = receipt.check_zero_emitted(None, "check_ran_n")
+    assert ok is False
+    assert "FAKE-ZERO" in msg
+
+
+def test_zero_emitted_ok():
+    """正例：0 都要落盤（寫咗 0 = 有數過）。"""
+    ok, msg = receipt.check_zero_emitted(0, "check_ran_n")
+    assert ok is True
+
+
+def test_enum_drift():
+    """負例 ENUM-DRIFT：value 超出閉集（就地加值 = 靜默）。"""
+    ok, msg = receipt.check_closed_enum("BOGUS", {"PASS", "REJECT", "UNKNOWN"}, "typed_reason")
+    assert ok is False
+    assert "ENUM-DRIFT" in msg
+
+
+def test_enum_ok():
+    ok, msg = receipt.check_closed_enum("PASS", {"PASS", "REJECT", "UNKNOWN"}, "typed_reason")
+    assert ok is True

@@ -293,3 +293,47 @@ def density_check(receipt: dict) -> tuple:
     if not isinstance(outputs, dict) or len(outputs) == 0:
         return False, 0.0   # 空 outputs = hollow receipt，fail
     return True, metric
+
+
+# ── 見證層驗證（§12 見證與時效 · v0.3 前置）────────────────────────
+# 「誰」母題四條，逐條可證偽（能被負控測出來的才叫約束）：
+#   1. 獨立於得益方（自簽 ≠ 獨立見證）
+#   2. 有到期日（冇到期日嘅身分一定靜默失效）
+#   3. 零值必發（寫 0 = 將未發生偽裝成已窮盡 = 假 0）
+#   4. 閉集（超出即 UNKNOWN，就地加值 = 靜默）
+
+
+def check_independent(issuer_id, beneficiary_id) -> tuple:
+    """驗證 issuer 獨立於 beneficiary（自簽 ≠ 獨立見證）。
+    負例 SELF-COUNTERSIGN：見證由受益方自簽。"""
+    if issuer_id is None or beneficiary_id is None:
+        return False, "MISSING-IDENTITY: issuer/beneficiary 缺一，無法判定獨立性"
+    if issuer_id == beneficiary_id:
+        return False, f"SELF-SIGNED: issuer={issuer_id} == beneficiary（自簽 ≠ 獨立見證）"
+    return True, "OK"
+
+
+def check_expiry(expires_at, now, field_name="expiry") -> tuple:
+    """驗證「有到期日」且未過期（冇到期日嘅身分一定靜默失效）。
+    負例 STATIC-WITNESS：見證冇到期日（三年前見證 = 今日見證）。"""
+    if expires_at is None:
+        return False, f"NO-EXPIRY: {field_name} 缺到期日（冇到期日 = 靜默失效）"
+    if expires_at <= now:
+        return False, f"EXPIRED: {field_name} expires_at={expires_at} <= now={now}"
+    return True, "OK"
+
+
+def check_zero_emitted(value, field_name) -> tuple:
+    """驗證「零值必發」——計數欄位唔可以缺失（None）。
+    負例 FAKE-ZERO：寫 0 = 將未發生偽裝成已窮盡；缺失 = 冇數過 = 假 0。"""
+    if value is None:
+        return False, f"FAKE-ZERO: {field_name} 缺計數（冇數過 ≠ 冇發生）"
+    return True, "OK"
+
+
+def check_closed_enum(value, allowed_set, field_name) -> tuple:
+    """驗證「閉集」——value 必須喺 allowed_set 內。
+    負例 ENUM-DRIFT：超出閉集 = 靜默（就地加值），要判 UNKNOWN。"""
+    if value not in allowed_set:
+        return False, f"ENUM-DRIFT: {field_name}={value!r} 超出閉集 {allowed_set}（超出即 UNKNOWN）"
+    return True, "OK"
