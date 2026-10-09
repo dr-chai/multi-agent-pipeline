@@ -370,7 +370,7 @@ def verify_witness_block(w: dict, now: int, beneficiary: str) -> tuple:
 
     # 計數：零值必發（缺失 = 冇數過 = 假 0）
     counters = w.get("counters", {})
-    for f in ("check_ran_n", "observer_count_n"):
+    for f in ("rejected_write_n", "check_ran_n", "expiry_breach_observed_n", "observer_count_n"):
         if f in counters:
             ok, msg = check_zero_emitted(counters.get(f), f)
             if not ok:

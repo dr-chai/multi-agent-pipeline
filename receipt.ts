@@ -329,7 +329,7 @@ export function verifyWitnessBlock(w: Record<string, unknown>, now: number, bene
     if (!r[0]) return [false, 'retention: ' + r[1]];
   }
   const counters = (w.counters || {}) as Record<string, unknown>;
-  for (const f of ['check_ran_n', 'observer_count_n']) {
+  for (const f of ['rejected_write_n', 'check_ran_n', 'expiry_breach_observed_n', 'observer_count_n']) {
     if (f in counters) {
       const r = checkZeroEmitted(counters[f], f);
       if (!r[0]) return [false, r[1]];

@@ -310,6 +310,21 @@ def test_witness_counter_fake_zero():
     assert ok is False
     assert "FAKE-ZERO" in msg
 
+def test_witness_counter_rejected_write_fake_zero():
+    """負例：counters rejected_write_n 缺失（越權寫過冇人計數 = 假 0）。"""
+    w = {"counters": {"rejected_write_n": None}}
+    ok, msg = receipt.verify_witness_block(w, now=100, beneficiary="agent_a")
+    assert ok is False
+    assert "FAKE-ZERO" in msg
+
+
+def test_witness_counter_expiry_breach_fake_zero():
+    """負例：counters expiry_breach_observed_n 缺失（冇檢查過有冇過期 = 假 0）。"""
+    w = {"counters": {"expiry_breach_observed_n": None}}
+    ok, msg = receipt.verify_witness_block(w, now=100, beneficiary="agent_a")
+    assert ok is False
+    assert "FAKE-ZERO" in msg
+
 
 def test_witness_enum_drift():
     """負例：typed_reason 超出閉集。"""
